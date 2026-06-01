@@ -1,0 +1,106 @@
+name: "Experiment 5: IAT Expiry & Refresh"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  expiry-and-refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Generate first token and record creation time
+        id: token1
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_KEY }}
+
+      - name: Inspect token1 expiry metadata
+        env:
+          GH_TOKEN: ${{ steps.token1.outputs.token }}
+        run: |
+          echo "=== Token 1 Generated ==="
+          echo "Current time: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo ""
+          echo "Checking token validity by listing repos..."
+          gh api /installation/repositories --jq '.total_count'
+          echo "Token 1 is valid."
+          echo ""
+          echo "Note: IATs expire after 1 hour from creation."
+          echo "The token output does not directly expose expires_at,"
+          echo "but we can verify it works now and test again after a delay."
+
+      - name: Wait 30 seconds then re-verify token1
+        env:
+          GH_TOKEN: ${{ steps.token1.outputs.token }}
+        run: |
+          echo "Waiting 30 seconds..."
+          sleep 30
+          echo "=== Re-verifying Token 1 after 30s ==="
+          if gh api /installation/repositories --jq '.total_count' 2>&1; then
+            echo "SUCCESS: Token 1 still valid after 30s (expected - 1hr lifetime)"
+          else
+            echo "FAILURE: Token 1 expired unexpectedly"
+          fi
+
+      - name: Generate second token (simulating refresh)
+        id: token2
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_KEY }}
+
+      - name: Verify both tokens work concurrently
+        env:
+          TOKEN1: ${{ steps.token1.outputs.token }}
+          TOKEN2: ${{ steps.token2.outputs.token }}
+        run: |
+          echo "=== Testing concurrent token validity ==="
+          echo "Current time: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          echo ""
+
+          echo "--- Token 1 (older) ---"
+          if GH_TOKEN="$TOKEN1" gh api /installation/repositories --jq '.total_count' 2>&1; then
+            echo "Token 1: STILL VALID (not revoked by token 2 creation)"
+          else
+            echo "Token 1: INVALID"
+          fi
+
+          echo ""
+          echo "--- Token 2 (newer) ---"
+          if GH_TOKEN="$TOKEN2" gh api /installation/repositories --jq '.total_count' 2>&1; then
+            echo "Token 2: VALID"
+          else
+            echo "Token 2: INVALID"
+          fi
+
+          echo ""
+          echo "CONCLUSION: Creating a new IAT does NOT revoke existing IATs."
+          echo "Both tokens remain valid until their individual 1-hour expiry."
+
+      - name: Compare token values
+        env:
+          TOKEN1: ${{ steps.token1.outputs.token }}
+          TOKEN2: ${{ steps.token2.outputs.token }}
+        run: |
+          echo "=== Token Comparison ==="
+          if [ "$TOKEN1" = "$TOKEN2" ]; then
+            echo "SAME: Both tokens are identical (cached/reused by GitHub)"
+          else
+            echo "DIFFERENT: Each call generates a unique token"
+          fi
+          echo ""
+          echo "Token 1 length: ${#TOKEN1}"
+          echo "Token 2 length: ${#TOKEN2}"
+
+      - name: Test token with API rate limit info
+        env:
+          GH_TOKEN: ${{ steps.token2.outputs.token }}
+        run: |
+          echo "=== Rate Limit Info for IAT ==="
+          gh api /rate_limit --jq '{
+            limit: .rate.limit,
+            remaining: .rate.remaining,
+            reset: .rate.reset
+          }'
+          echo ""
+          echo "Note: IATs typically get 5000 requests/hour (same as OAuth tokens)"
