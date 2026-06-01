@@ -13,6 +13,9 @@ jobs:
         with:
           client-id: ${{ vars.GH_CLIENT_ID }}
           private-key: ${{ secrets.GH_APP_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: |
+            gh-app-test-2
 
       - name: Inspect token1 expiry metadata
         env:
@@ -48,6 +51,9 @@ jobs:
         with:
           client-id: ${{ vars.GH_CLIENT_ID }}
           private-key: ${{ secrets.GH_APP_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: |
+            gh-app-test-2
 
       - name: Verify both tokens work concurrently
         env:
