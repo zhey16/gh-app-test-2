@@ -9,7 +9,7 @@ jobs:
     steps:
       - name: Generate first token and record creation time
         id: token1
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v3.2.0
         with:
           app-id: ${{ vars.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_KEY }}
@@ -44,7 +44,7 @@ jobs:
 
       - name: Generate second token (simulating refresh)
         id: token2
-        uses: actions/create-github-app-token@v1
+        uses: actions/create-github-app-token@v3.2.0
         with:
           app-id: ${{ vars.GH_APP_ID }}
           private-key: ${{ secrets.GH_APP_KEY }}
